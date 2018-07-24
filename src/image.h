@@ -6,6 +6,10 @@
 #include <float.h>
 #include <string.h>
 #include <math.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <time.h>
+#include <unistd.h>
 #include "box.h"
 
 typedef struct {

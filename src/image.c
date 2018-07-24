@@ -2,6 +2,8 @@
 #include "utils.h"
 #include "blas.h"
 #include "cuda.h"
+#include "db.h"
+
 #include <stdio.h>
 #include <math.h>
 
@@ -439,10 +441,14 @@ void draw_detections(image im, int num, float thresh, box *boxes, float **probs,
 
 void draw_detections_cv_v3(IplImage* show_img, detection *dets, int num, float thresh, char **names, image **alphabet, int classes, int ext_output)
 {
-    int i, j;
+//    int i, j;
+    int i, j, count_person = 0;
     if (!show_img) return;
     static int frame_id = 0;
     frame_id++;
+
+    char dir_image[16] = {0};
+    char image_name[32] = {0};
 
     for (i = 0; i < num; ++i) {
         char labelstr[4096] = { 0 };
@@ -457,7 +463,10 @@ void draw_detections_cv_v3(IplImage* show_img, detection *dets, int num, float t
                     strcat(labelstr, ", ");
                     strcat(labelstr, names[j]);
                 }
-                printf("%s: %.0f%% ", names[j], dets[i].prob[j] * 100);
+//                printf(" === demo name: %s: %.0f%% ", names[j], dets[i].prob[j] * 100);
+                if(!strcmp(names[j], "person")) {
+                    count_person += 1;
+                }
             }
         }
         if (class_id >= 0) {
@@ -545,9 +554,47 @@ void draw_detections_cv_v3(IplImage* show_img, detection *dets, int num, float t
             black_color.val[0] = 0;
             CvFont font;
             cvInitFont(&font, CV_FONT_HERSHEY_SIMPLEX, font_size, font_size, 0, font_size * 3, 8);
+//            cvSaveImage("test.png", show_img, 0);
             cvPutText(show_img, labelstr, pt_text, &font, black_color);
         }
     }
+
+    printf("\n Total Person: %d\n", count_person);
+
+    if(count_person > 0) {
+
+        time_t tt = time(NULL);
+        struct tm *stm = localtime(&tt);
+
+        sprintf(dir_image, "%04d-%02d-%02d", stm->tm_year + 1900, stm->tm_mon + 1, stm->tm_mday);
+
+        if (access(dir_image, 0)) {
+            mkdir(dir_image, 0777);
+        }
+
+        sprintf(image_name, "%s/%02d-%02d-%02d-%02d.jpg", dir_image, stm->tm_hour, stm->tm_min, stm->tm_sec, rand()%100);
+
+        // save when detect person
+        cvSaveImage(image_name, show_img, 0);
+
+        //db operation
+        MYSQL *mysql;
+        mysql = mysqldb_init();
+        if (!mysql) {
+            printf("\nmysql_init error.\n");
+        } else {
+            if(mysqldb_connect(mysql) == 0) {
+                if(mysqldb_insert(mysql, count_person, image_name) != 0) {
+                    printf("\nmysql insert failed.\n");
+                }
+            } else {
+                printf("\nmysql connect failed.\n");
+            }
+
+            mysqldb_close(mysql);
+        }
+    }
+
     if (ext_output) {
         fflush(stdout);
     }
